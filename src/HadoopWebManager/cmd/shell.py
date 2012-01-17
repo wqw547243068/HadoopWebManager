@@ -40,8 +40,8 @@ class HadoopProcess(object):
         
     class HDFS(object):
         def __getattribute__(self, attr):
-            process_methods = ['ls', 'cat']
-            run_methods = ['rm', 'rmr', 'cp', 'mv']
+            process_methods = ['rm', 'rmr', 'cp', 'mv']
+            run_methods = ['ls', 'cat']
             
             if attr in process_methods:
                 return HadoopProcess.HDFS._get_process(attr)
@@ -52,17 +52,64 @@ class HadoopProcess(object):
         
         @classmethod
         def _get_process(cls, name):
-            cmd = getattr(commands.HDFS, name)()
-            return HadoopProcess._get_process(cmd)
+            def inner(*args, **kwargs):
+                cmd = getattr(commands.HDFS, name)(*args, **kwargs)
+                return HadoopProcess._get_process(cmd)
+            return inner
         
         @classmethod
         def _call(cls, name):
-            cmd = getattr(commands.HDFS, name)()
-            return HadoopProcess._call(cmd)
+            def inner(*args, **kwargs):
+                cmd = getattr(commands.HDFS, name)(*args, **kwargs)
+                return HadoopProcess._call(cmd)
+            return inner
         
     class Jar(object):
         @classmethod
         def get(cls, jar_name, **options):
             run_jar_cmd, cwd = commands.Jar.get_cmd(jar_name, **options)
-            HadoopProcess._get_process(run_jar_cmd, cwd)
+            return HadoopProcess._get_process(run_jar_cmd, cwd)
+
+
+class Hadoop(object):
+    @classmethod
+    def ls(cls, path):
+        process = HadoopProcess.hdfs.ls(path)
+        
+        if len(process.stderr.readline()) != 0:
+            return False, iter(process.stderr.readline, '')
+        return True, iter(process.stdout.readline, '')
+      
+    @classmethod
+    def cat(cls, path, start=0, end=None):
+        process = HadoopProcess.hdfs.cat(path)
+          
+        if len(process.stderr.readline()) != 0:
+            return False, iter(process.stderr.readline, '')
+          
+        if start <= 0 and end is None:
+            return True, iter(process.stdout.readline, '')
+        else:
+            return True, \
+                  (line for (idx, line) in enumerate(process.stdout.readline())
+                   if idx >= start and idx < end)
     
+    @classmethod
+    def rm(cls, path):
+        return True if HadoopProcess.hdfs.rm(path)==0 else False
+    
+    @classmethod
+    def rmr(cls, path):
+        return True if HadoopProcess.hdfs.rmr(path)==0 else False
+    
+    @classmethod
+    def cp(cls, src, dst):
+        return True if HadoopProcess.hdfs.cp(src, dst)==0 else False
+    
+    @classmethod
+    def mv(cls, src, dst):
+        return True if HadoopProcess.hdfs.mv(src, dst)==0 else False
+                  
+    @classmethod
+    def jar(cls, jar_name, **options):
+        return HadoopProcess.jar.get(jar_name, **options)
